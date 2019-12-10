@@ -18,7 +18,14 @@
 package com.example.android.devbyteviewer
 
 import android.app.Application
+import android.os.Build
+import androidx.work.*
+import com.example.android.devbyteviewer.work.RefreshDataWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.concurrent.TimeUnit
 
 /**
  * Override application to setup background work via WorkManager
@@ -26,12 +33,37 @@ import timber.log.Timber
 class DevByteApplication : Application() {
 
     // TODO (01) Create CoroutineScope variable applicationScope, using Dispatchers.Default.
-
+    val applicationScope = CoroutineScope(Dispatchers.Default)
     // TODO (02) Create a delayedInit() function that calls setupRecurringWork() in
     // the coroutine you defined above.
-
+    fun delayedInit() {
+        applicationScope.launch {
+            setupRecurringWork()
+        }
+    }
     // TODO (04) Create a setupRecurringWork() function and use a Builder to define a
     // repeatingRequest variable to handle scheduling work.
+
+    private fun setupRecurringWork() {
+        val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.UNMETERED)
+                .setRequiresBatteryNotLow(true)
+                .setRequiresCharging(true)
+                .apply {
+                    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
+                        setRequiresDeviceIdle(true)
+                    }
+                }.build()
+
+        val repeatingRequest = PeriodicWorkRequestBuilder<RefreshDataWorker>(1, TimeUnit.DAYS)
+                .setConstraints(constraints)
+                .build()
+
+        WorkManager.getInstance().enqueueUniquePeriodicWork(
+                RefreshDataWorker.WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                repeatingRequest)
+    }
 
     // TODO (05) In setupRecurringWork(), get an instance of WorkManager and
     // launch call enqueuPeriodicWork() to schedule the work.
